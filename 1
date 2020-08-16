@@ -1,0 +1,482 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[ ]:
+
+
+#方法一
+
+
+# In[6]:
+
+
+#问题一（数据预处理）
+import numpy as np
+import pandas as pd
+import datetime
+import copy
+
+time_inc=[]  #时间不连续节点
+speedU=[]    #加速不合要求 Vup>100/7
+speedD=[]    #减速不合要求 Vdn>28.8
+data1 = pd.read_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/文件3.xlsx')  # 原始数据
+data1 = pd.DataFrame(data1)
+data1 = np.array(data1)
+data1_out=copy.deepcopy(data1) #原始数据副本（记录处理后最终数据）
+
+
+# In[7]:
+
+
+#寻找断续时间节点
+for i in range(data1.shape[0]-1):
+    date1 = datetime.datetime.strptime(data1[i][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+    date2 = datetime.datetime.strptime(data1[i+1][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+    ss=(date2-date1).seconds
+    if ss!=1:
+        time_inc+=[[i,ss]]
+
+
+# In[8]:
+
+
+time_inc=np.array(time_inc)
+print(time_inc.shape)
+time_inc=time_inc+np.array([1,0]*time_inc.shape[0]).reshape([time_inc.shape[0],2])#i+1，时间+1秒
+time_inc = pd.DataFrame(time_inc)
+time_inc.to_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/time_inc.xlsx') #输出断续时间节
+
+
+# In[9]:
+
+
+[1,0]*2#列表乘法操作
+
+
+# In[10]:
+
+
+#缺失数据补充（仅补充间隔 1 秒）
+ff1=[] #过渡列表，给原始数据补充 1 秒缺失数据
+i=0
+j=data1_out.shape[0]-1 # 跟踪待补充数据表维度
+data1_out=data1_out.tolist() #向量转列表
+
+#这种循环还是得注意的（对序列进行增添或者删除操作）
+while(i<j):
+    date3 =datetime.datetime.strptime(data1_out[i][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+    date4 =datetime.datetime.strptime(data1_out[i+1][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+    ss=(date4-date3).seconds
+    if ss==2:
+        ff1=[(date3+datetime.timedelta(seconds=1)).strftime('%Y/%m/%d %H:%M:%S')]
+        ff1=ff1+(1/2*(np.array(data1_out[i+1][1:])+np.array(data1_out[i][1:]))).tolist()
+        data1_out.insert(i+1,ff1)
+        j=j+1
+    i=i+1
+
+
+# In[11]:
+
+
+#新数据中寻找加减速异常数据
+for i in range(len(data1_out)-1):
+    date5 =datetime.datetime.strptime(data1_out[ i][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+    date6 =datetime.datetime.strptime(data1_out[i+1][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+    ss=(date6-date5).seconds
+    if (data1_out[i+1][1]-data1_out[i][1])/ss>100/7:
+        speedU.append(i+1)
+    if (data1_out[i][1]-data1_out[i+1][1])/ss>28.8:
+        speedD.append(i+1)
+data1_out=np.array(data1_out)
+    
+
+
+# In[12]:
+
+
+#剔除异常数据
+data1_out=np.delete(data1_out,speedU,axis=0)
+data1_out=np.delete(data1_out,speedD,axis=0)
+
+#数据导出，加减速异常数据节点
+speedU=np.array(speedU)
+speedD=np.array(speedD)
+speedU=speedU+np.ones([1,speedU.shape[0]])
+speedD=speedD+np.ones([1,speedD.shape[0]])
+speedU=pd.DataFrame(speedU.T)
+speedD=pd.DataFrame(speedD.T)
+speedU.to_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/speedU.xlsx') #输出加速异常节点输出加速异常节点
+speedD.to_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/speedD.xlsx') ##输出减速异常节点输出减速异常节点
+
+
+# In[13]:
+
+
+#怠速片段提取（循环巧妙）
+n=0
+i=0
+cnt=[]  #记录怠速点
+cnt1=[] #记录怠速异常点
+data1_out=data1_out.tolist() #向量转列表
+while(i<len(data1_out)-1):
+    if float(data1_out[i][1])<10:
+        while(float(data1_out[i][1])<10):
+            n=n+1
+            i=i+1
+            if i==len(data1_out):
+                break
+        cnt.append([i-n,n])
+    i=i+1
+    n=0
+
+#怠速异常片段提取
+for i in range(len(cnt)-1):
+    if cnt[i][1]>180:
+        cnt1.append([cnt[i][0],cnt[i][1]])
+cnt2=copy.deepcopy(cnt1)
+cnt1=np.array(cnt1)+np.ones([len(cnt1),1])
+cnt1=pd.DataFrame(cnt1)
+cnt1.to_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/cnt1.xlsx') # 输出怠速异常片段
+
+
+# In[14]:
+
+
+#确定怠速异常数据和停车异常数据片段
+cut=[] #异常片段删除区间记录
+for i in range(len(cnt2)-1):
+    if float(data1_out[cnt2[i][0]+179][1])!=0:
+        cut.append([cnt2[i][0]+180,cnt2[i][0]+cnt2[i][1]-1])#删除180秒后的<10的数据
+    else:
+        cut1=[]
+        n=0
+        j=cnt2[i][0]
+        while(j<cnt2[i][0]+cnt2[i][1]-1):#把每段速度=0的区间提取出来
+            if float(data1_out[j][1])==0:
+                while(float(data1_out[j][1])==0):
+                    n=n+1
+                    j=j+1
+                    if j==cnt2[i][0]+cnt2[i][1]:
+                        break
+                cut1.append([j-n,j-1])#存储的两个值都是序号
+            j=j+1
+            n=0
+
+        ind=[]
+        for m in range(len(cut1)):
+            ind.append(cut1[m][1]-cut1[m][0])
+            if m==len(cut1):
+                break        
+        index=ind.index(max(ind))      
+        cut.append([cut1[index][0]+5,cut1[index][1]-5])
+
+#删除异常数据片段
+data1_out=np.array(data1_out)
+for i in range(len(cut)):
+    data1_out=np.delete(data1_out,range(cut[i][0],cut[i][1]+1),axis=0)
+
+#数据输出
+cut=np.array(cut)
+cut=pd.DataFrame(cut)
+cut.to_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/cut.xlsx') #输出待删除异常数据片段
+data1_out=pd.DataFrame(data1_out)
+data1_out.to_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/data1_out.xlsx') #最终数据输出
+
+
+# In[15]:
+
+
+#问题二 （运动片段划分）
+import numpy as np
+import pandas as pd
+import datetime
+data1 = pd.read_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/data1_out.xlsx') #原始数据
+data1 = pd.DataFrame(data1)
+data1 = np.array(data1)
+
+
+# In[16]:
+
+
+#怠速片段提取
+n=0
+i=0
+rec_idle=[]#记录怠速片段，包括怠速起始点，结束点，时长
+while(i<data1.shape[0]-1):
+    if data1[i][1]<10:
+        while(data1[i][1])<10:
+            n=n+1
+            i=i+1
+            if i==data1.shape[0]:
+                break
+        rec_idle.append([i-n,i-1,n])
+    i=i+1  
+    n=0
+
+
+# In[17]:
+
+
+##挑选运动学片段
+#初步挑选候选运动学片段
+sport=[] #储存候选运动学片段
+for i in range(len(rec_idle)-1):
+    sport.append([rec_idle[i][0],rec_idle[i+1][0],rec_idle[i+1][0]-rec_idle[i][0]+1])
+
+#根据规则剔除非运动学片段，必须包括怠速，加速，减速和匀速 4 个过程
+count=[] #记录非运动学片段索引            
+for i in range(len(sport)):
+    upsp=0 #记录存在加速阶段
+    dnsp=0 #记录存在减速阶段
+    consp=0 #记录存在匀速阶段
+    j=sport[i][0]
+    while(j<=sport[i][1]):
+        date1 =datetime.datetime.strptime(data1[i][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+        date2 =datetime.datetime.strptime(data1[i+1][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+        ss=(date2-date1).seconds
+        if (data1[j+1][1]-data1[j][1])/ss>0.1/3.6 and data1[j+1][1]>=10:
+            upsp=1
+        if abs(data1[j][1]-data1[j+1][1])/ss<0.1/3.6 and min([data1[j][1],data1[j+1][1]])>=10:
+            consp=1
+        if (data1[j][1]-data1[j+1][1])/ss>0.1/3.6 and data1[j][1]>=10:
+            dnsp=1
+        j=j+1
+        if j==data1.shape[0]-1:
+            break
+    if upsp==1 and consp==1 and dnsp==1:
+        count.append(i)
+sport1=[] #储存运动学片段
+for i in range(len(count)):
+    sport1.append(sport[count[i]])
+
+
+# In[19]:
+
+
+##筛选有效运动学片段
+#剔除片段时间长度少于 20 秒的片段
+i=0
+cnt_20=[]
+while(i<len(sport1)):
+    if sport1[i][2]>=20:
+        cnt_20.append(i)
+    i=i+1
+sport2=[] #记录剔除了时间短之后的片段
+for i in range(len(cnt_20)):
+    sport2.append(sport1[cnt_20[i]])
+
+#剔除缺失时间不低于 10% 的片段
+cnt_10=[]
+for i in range(len(sport2)):
+    misst=0
+    date3 =datetime.datetime.strptime(data1[sport2[i][0]][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+    date4 =datetime.datetime.strptime(data1[sport2[i][1]][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+    len_time=(date4-date3).seconds
+    j=sport2[i][0]
+    while(j<sport2[i][1]):
+        date5 =datetime.datetime.strptime(data1[j][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+        date6 =datetime.datetime.strptime(data1[j+1][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+        ss=(date6-date5).seconds
+        misst=misst+ss-1
+        j=j+1
+    if misst/len_time<0.1:
+        cnt_10.append(i)
+sport3=[] #剔除时间缺失率不小于 10% 的片段
+for i in range(len(cnt_10)):
+    sport3.append(sport2[cnt_10[i]])
+
+
+# In[20]:
+
+
+sport3=np.array(sport3)+np.array([[1,1,0]]*len(sport3))
+sport3=pd.DataFrame(sport3)
+sport3.to_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/sport.xlsx') #输出运动学片段
+
+
+# In[ ]:
+
+
+#问题三 （构建汽车运行工况)
+
+
+# In[3]:
+
+
+import numpy as np
+import pandas as pd
+import datetime
+data1 = pd.read_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/data1_out.xlsx') # 汽车运行数据
+data1 = pd.DataFrame(data1)
+data1 = np.array(data1)
+data2 = pd.read_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/sport.xlsx') #运动学片段
+data2 = pd.DataFrame(data2)
+data2 = np.array(data2)
+data2=data2-np.array([[1,1,0]]*data2.shape[0])
+feature=[] #记录每个运动学片段特征
+#特征参数
+T=0 #运行时间 
+S=0 #运行距离 
+Ti=0 #怠速时间 
+Ta=0 #加速时间 
+Td=0 #减速时间 
+Te=0 #匀速时间 
+Vmax=0#最大速度 (Km/h)
+Vm=0 #平均速度 
+Vmr=0 #行驶平均速度 
+Vs=0 #速度标准偏差 (Km/h)
+Amax=0 #最大加速度 (m/s^2)
+Am=0 #平均加速度 
+Dmax=0 #最大减速度 绝对值 
+Dm=0 #平均减速度 绝对值 
+As=0 #加速度标准偏差 
+for i in range(data2.shape[0]):
+    time1=datetime.datetime.strptime(data1[data2[i][0]][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+    time2=datetime.datetime.strptime(data1[data2[i][1]][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+    T=(time2-time1).seconds
+    S=0
+    Ti=0
+    Ta=0
+    Td=0
+    Te=0
+    Vmax=0
+    Vm=0
+    Vmr=0
+    Vss=[]
+    count_Vmr=0
+    Amax=0
+    Am=0
+    count_Am=0
+    Dmax=0
+    Dm=0
+    count_Dm=0
+    Ass=[]
+    for j in range(data2[i][0],data2[i][1]):
+        S=S+1/2*(data1[j][1]+data1[j+1][1])
+        time3=datetime.datetime.strptime(data1[j][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+        time4=datetime.datetime.strptime(data1[j+1][0].replace('.000.',''),'%Y/%m/%d %H:%M:%S')
+        ss=(time4-time3).seconds
+        if data1[j][1]<10:
+            Ti=Ti+ss
+        if (data1[j+1][1]-data1[j][1])/ss>0.1/3.6 and data1[j+1][1]>=10:
+            Ta=Ta+ss
+        if Amax<(data1[j+1][1]-data1[j][1])/ss:
+            Amax=(data1[j+1][1]-data1[j][1])/ss
+            Am=Am+(data1[j+1][1]-data1[j][1])/ss
+            count_Am=count_Am+1
+            Ass.append((data1[j+1][1]-data1[j][1])/ss)
+        if (data1[j][1]-data1[j+1][1])/ss>0.1/3.6 and data1[j][1]>=10:
+            Td=Td+ss
+        if Dmax<(data1[j][1]-data1[j+1][1])/ss:
+            Dmax=(data1[j][1]-data1[j+1][1])/ss
+            Dm=Dm+(data1[j][1]-data1[j+1][1])/ss
+            count_Dm=count_Dm+1
+        if abs((data1[j][1]-data1[j+1][1])/ss)<0.1/3.6 and min([data1[j][1],data1[j+1][1]])>=10:
+            Te=Te+ss
+        if Vmax<data1[j][1]:
+            Vmax=data1[j][1]
+            Vm=Vm+data1[j][1]
+        if data1[j][1]>=10:
+            Vmr=Vmr+data1[j][1]
+            count_Vmr=count_Vmr+1
+            Vss.append(data1[j][1])
+   
+    Vm=(Vm+data1[data2[i][1]][1])/data2[i][2]
+    Vmr=Vmr/count_Vmr
+    Am=Am/count_Am
+    Dm=Dm/count_Dm        
+    Vss.append(data1[data2[i][1]][1])
+    Vs=np.std(np.array(Vss))
+    As=np.std(np.array(Ass))
+    feat=[T,S,Ti/T,Ta/T,Td/T,Te,Vmax,Vm,Vmr,Vs,Amax,Am,Dmax,Dm,As]
+feature.append(feat)
+feature=np.array(feature)
+feature=pd.DataFrame(feature)
+feature.to_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/feature.xlsx') #输出特征参数数据
+
+
+# In[ ]:
+
+
+#——选运动学片段组成工况曲线——
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import numpy as np
+import pandas as pd
+import copy
+import datetime
+
+data1 = pd.read_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/feature1.xlsx') #文件1特征参数数据
+data1 = pd.DataFrame(data1)
+data1 = np.array(data1)
+feature2 = pd.read_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/feature2.xlsx') #文件2特征参数数据
+feature2 = pd.DataFrame(feature2)
+feature2 = np.array(feature2)
+feature3 = pd.read_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/feature3.xlsx') #文件3特征参数数据
+feature3 = pd.DataFrame(feature3)
+feature3 = np.array(feature3)
+data0 = pd.read_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/data1_out.xlsx') #文件1汽车运行数据
+data0 = pd.DataFrame(data0)
+data0 = np.array(data0)
+data02 = pd.read_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/data1_out.xlsx')#文件2汽车运行数据
+data02 = pd.DataFrame(data02)
+data02 = np.array(data02)
+data03 = pd.read_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/data1_out.xlsx') #文件3汽车运行数据
+data03 = pd.DataFrame(data03)
+data03 = np.array(data03)
+sport = pd.read_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/sport1.xlsx') # 文件 1 运动学片段
+sport = pd.DataFrame(sport)
+sport = np.array(sport)
+sport=sport-np.array([[1,1,0]]*sport.shape[0])
+sport2 = pd.read_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/sport2.xlsx') #文件 2 运动学片段
+sport2 = pd.DataFrame(sport2)
+sport2 = np.array(sport2)
+sport2=sport2-np.array([[1,1,0]]*sport2.shape[0])
+sport3 = pd.read_excel('G:/数学建模/2019年中国研究生数学建模竞赛赛题/2019年中国研究生数学建模竞赛D题/原始数据/sport3.xlsx') #文件 3 运动学片段
+sport3 = pd.DataFrame(sport3)
+sport3 = np.array(sport3)
+sport3=sport3-np.array([[1 ,1,0]]*sport3.shape[0])
+
+#合并 3 个文件的运动学片段，索引 0:875 为文件 1,876:1543 为文件 2,1544:2103
+data=data1.tolist()+feature2.tolist()+feature3.tolist()
+data=np.array(data)
+#PCA 3个主成分
+pca_d = PCA(n_components=3) #选择 3 个主成分
+data_new=pca_d.fit_transform(data)
+clust=KMeans(n_clusters=3) # 构造聚类 分 3 类
+clust.fit(data_new) #聚类
+label_p=clust.labels_ #获取聚类标签
+#聚类画图
+la1 = data_new[label_p == 0]
+la2 = data_new[label_p == 1]
+la3 = data_new[label_p == 2]
+x1=[]
+y1=[]
+z1=[]
+x2=[]
+y2=[]
+z2=[]
+x3=[]
+y3=[]
+z3=[]
+for i in range(la1.shape[0]):
+    x1.append(la1[i][0])
+    y1.append(la1[i][1])
+    z1.append(la1[i][2])
+for i in range(la2.shape[0]):
+    x2.append(la2[i][0])
+    y2.append(la2[i][1])
+    z2.append(la2[i][2])
+for i in range(la3.shape[0]):
+    x3.append(la3[i][0])
+    y3.append(la3[i][1])
+    z3.append(la3[i][2])
+fig=plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(x1,y1,z1,c='b')
+ax.scatter(x2,y2,z2,c='r')
+ax.scatter(x3,y3,z3,c='k')
+plt.show()
+
